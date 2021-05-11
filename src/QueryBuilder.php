@@ -1,5 +1,7 @@
 <?php
 
+require 'functions.php';
+
 
 class QueryBuilder {
     private $pdo;
@@ -10,15 +12,10 @@ class QueryBuilder {
     }
 
     public function create($table, array $params) {
-        $fields = implode(', ', array_keys($params));
-        $values = implode(', ', array_map(function ($item) {
-            return ':' . $item;
-        }, array_keys($params)));
+        $fields = getKeyString($params);
+        $values = getKeyTagString($params);
         $sql = "INSERT INTO {$table} ({$fields}) VALUES ({$values})";
-        $statement = $this->pdo->prepare($sql);
-        return $statement->execute(array_combine(array_map(function ($item) {
-            return ':' . $item;
-        }, array_keys($params)), array_values($params)));
+        return $this->prepareAndExecute($sql, getTagValues($params));
     }
 
     public function read($table, $columns=null, $condition=null) {
@@ -35,77 +32,64 @@ class QueryBuilder {
         }
     }
 
-    public function update($table, $id, array $params) {
-        $exp = implode(', ', array_map(function ($item) {
-            return $item . '=:' . $item;
-        }, array_keys($params)));
-        $sql = "UPDATE {$table} SET {$exp} WHERE id=:id";
-        $statement = $this->pdo->prepare($sql);
-        $params = array_combine(array_map(function ($item) {
-            return ':' . $item;
-        }, array_keys($params)), array_values($params));
-        $params[':id'] = $id;
-        return $statement->execute($params);
+    public function updateById($table, $id, array $params) {
+        $values = getKeyValuesString($params);
+        $sql = "UPDATE {$table} SET {$values} WHERE id=:id";
+        $params['id'] = $id;
+        return $this->prepareAndExecute($sql, getTagValues($params));
+    }
+
+    public function updateIf($table, array $condition, array $params) {
+        $values = getKeyValuesString($params);
+        $cond = getKeyValuesString($condition);
+        $sql = "UPDATE {$table} SET {$values} WHERE {$cond}";
+        return $this->prepareAndExecute($sql, getTagValues($params + $condition));
     }
 
     public function deleteById($table, $id) {
         $sql = "DELETE FROM {$table} WHERE id=:id";
-        $statement = $this->pdo->prepare($sql);
-        return $statement->execute(array(':id' => $id));
+        return $this->prepareAndExecute($sql, array(':id' => $id));
     }
 
     public function deleteIf($table, $condition) {
-        $cond = implode(', ', array_map(function ($item) {
-            return $item . '=:' . $item;
-        }, array_keys($condition)));
+        $cond = getKeyValuesString($condition);
         $sql = "DELETE FROM {$table} WHERE {$cond}";
-        $condition = array_combine(array_map(function ($item) {
-            return ':' . $item;
-        }, array_keys($condition)), array_values($condition));
-        $statement = $this->pdo->prepare($sql);
-        return $statement->execute($condition);
+        return $this->prepareAndExecute($sql, getTagValues($condition));
     }
 
 
     private function readAll($table) {
         $sql = "SELECT * FROM {$table}";
-        $statement = $this->pdo->prepare($sql);
-        $statement->execute();
-        return $statement->fetchAll(PDO::FETCH_ASSOC);
+        return $this->prepareAndFetchAssoc($sql);
     }
 
     private function readColumns($table, $columns) {
         $cols = implode(', ', $columns);
         $sql = "SELECT {$cols} FROM {$table}";
-        $statement = $this->pdo->prepare($sql);
-        $statement->execute();
-        return $statement->fetchAll(PDO::FETCH_ASSOC);
+        return $this->prepareAndFetchAssoc($sql);
     }
 
     private function readColsIf($table, $columns, $condition) {
         $cols = implode(', ', $columns);
-        $cond = implode(', ', array_map(function ($item) {
-            return $item . '=:' . $item;
-        }, array_keys($condition)));
+        $cond = getKeyValuesString($condition);
         $sql = "SELECT {$cols} FROM {$table} WHERE {$cond}";
-        $condition = array_combine(array_map(function ($item) {
-            return ':' . $item;
-        }, array_keys($condition)), array_values($condition));
-        $statement = $this->pdo->prepare($sql);
-        $statement->execute($condition);
-        return $statement->fetchAll(PDO::FETCH_ASSOC);
+        return $this->prepareAndFetchAssoc($sql, getTagValues($condition));
     }
 
     private function readIf($table, $condition) {
-        $cond = implode(', ', array_map(function ($item) {
-            return $item . '=:' . $item;
-        }, array_keys($condition)));
+        $cond = getKeyValuesString($condition);
         $sql = "SELECT * FROM {$table} WHERE {$cond}";
+        return $this->prepareAndFetchAssoc($sql, getTagValues($condition));
+    }
+
+    private function prepareAndExecute($sql, array $params) {
         $statement = $this->pdo->prepare($sql);
-        $condition = array_combine(array_map(function ($item) {
-            return ':' . $item;
-        }, array_keys($condition)), array_values($condition));
-        $statement->execute($condition);
+        return $statement->execute($params);
+    }
+
+    private function prepareAndFetchAssoc($sql, $params = null) {
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute($params);
         return $statement->fetchAll(PDO::FETCH_ASSOC);
     }
 }
