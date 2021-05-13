@@ -19,67 +19,27 @@ class QueryBuilder {
     }
 
     public function read($table, $columns=null, $condition=null) {
-        if (!isset($columns)) {
-            if (!isset($condition)) {
-                return $this->readAll($table);
-            } else {
-                return $this->readIf($table, $condition);
-            }
-        } else if (isset($condition)) {
-            return $this->readColsIf($table, $columns, $condition);
+        if (isset($columns) && isset($condition)) {
+            $cols = implode(', ', $columns);
+            $cond = getKeyValuesString($condition);
+            $sql = "SELECT {$cols} FROM {$table} WHERE {$cond}";
+            return $this->prepareAndFetchAssoc($sql, getTagValues($condition));
         } else {
-            return $this->readColumns($table, $columns);
+            $sql = "SELECT * FROM {$table}";
+            return $this->prepareAndFetchAssoc($sql);
         }
     }
 
-    public function updateById($table, $id, array $params) {
+    public function update($table, $id, array $params) {
         $values = getKeyValuesString($params);
         $sql = "UPDATE {$table} SET {$values} WHERE id=:id";
         $params['id'] = $id;
         return $this->prepareAndExecute($sql, getTagValues($params));
     }
 
-    public function updateIf($table, array $condition, array $params) {
-        $values = getKeyValuesString($params);
-        $cond = getKeyValuesString($condition);
-        $sql = "UPDATE {$table} SET {$values} WHERE {$cond}";
-        return $this->prepareAndExecute($sql, getTagValues($params + $condition));
-    }
-
-    public function deleteById($table, $id) {
+    public function delete($table, $id) {
         $sql = "DELETE FROM {$table} WHERE id=:id";
         return $this->prepareAndExecute($sql, array(':id' => $id));
-    }
-
-    public function deleteIf($table, $condition) {
-        $cond = getKeyValuesString($condition);
-        $sql = "DELETE FROM {$table} WHERE {$cond}";
-        return $this->prepareAndExecute($sql, getTagValues($condition));
-    }
-
-
-    private function readAll($table) {
-        $sql = "SELECT * FROM {$table}";
-        return $this->prepareAndFetchAssoc($sql);
-    }
-
-    private function readColumns($table, $columns) {
-        $cols = implode(', ', $columns);
-        $sql = "SELECT {$cols} FROM {$table}";
-        return $this->prepareAndFetchAssoc($sql);
-    }
-
-    private function readColsIf($table, $columns, $condition) {
-        $cols = implode(', ', $columns);
-        $cond = getKeyValuesString($condition);
-        $sql = "SELECT {$cols} FROM {$table} WHERE {$cond}";
-        return $this->prepareAndFetchAssoc($sql, getTagValues($condition));
-    }
-
-    private function readIf($table, $condition) {
-        $cond = getKeyValuesString($condition);
-        $sql = "SELECT * FROM {$table} WHERE {$cond}";
-        return $this->prepareAndFetchAssoc($sql, getTagValues($condition));
     }
 
     private function prepareAndExecute($sql, array $params) {
